@@ -3,7 +3,6 @@ package com.example.tran.controller;
 import com.example.tran.dto.rest.CreateTransactionDto;
 import com.example.tran.dto.rest.TransactionsStatisticsDto;
 import com.example.tran.service.TransactionService;
-import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +25,7 @@ public class TransactionController {
 
     @PostMapping("/transactions")
     @ApiOperation(value = "Create new transaction")
-    ResponseEntity<Void> createTransaction(@RequestBody CreateTransactionDto createTransactionDto) {
+    ResponseEntity<Void> createTransaction(@RequestBody CreateTransactionDto createTransactionDto) throws Exception {
 
         transactionService.createTransaction(createTransactionDto);
 
@@ -38,8 +37,7 @@ public class TransactionController {
     ResponseEntity<TransactionsStatisticsDto> getTransactionsStatistics() {
 
         TransactionsStatisticsDto transactionsStatisticsDto = transactionService.getTransactionsStatistics();
-
-        return new ResponseEntity<>(transactionsStatisticsDto, HttpStatus.OK);
+        return new ResponseEntity<>(transactionsStatisticsDto, HttpStatus.CREATED);
     }
 
     @DeleteMapping("/transactions")

@@ -11,4 +11,5 @@ import java.util.Date;
 public class Transaction {
     private BigDecimal amount;
     private Date timestamp;
+    private Long count;
 }
