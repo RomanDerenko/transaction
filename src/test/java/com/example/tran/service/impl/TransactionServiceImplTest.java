@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -56,7 +57,7 @@ public class TransactionServiceImplTest {
     public void testTransactionStatisticsExpired() throws Exception {
 
         Date currentDate = new Date();
-        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, BigDecimal.ROUND_UNNECESSARY);
+        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
         createTransaction(transactionAmount, currentDate);
 
         Thread.sleep(MINUTE_MILLISECONDS);
@@ -73,7 +74,7 @@ public class TransactionServiceImplTest {
     @Test
     public void createOneTransactionTest() throws Exception {
         Date currentDate = new Date();
-        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, BigDecimal.ROUND_UNNECESSARY);
+        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
         createTransaction(transactionAmount, currentDate);
 
         TransactionsStatisticsDto transactionsStatisticsDto = transactionService.getTransactionsStatistics();
@@ -88,7 +89,7 @@ public class TransactionServiceImplTest {
     public void createMultipleTransactionsAtSameTimeTest() throws Exception {
         Date currentDate = new Date();
 
-        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, BigDecimal.ROUND_UNNECESSARY);
+        BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
 
         int transactionsCount = 5000;
 
@@ -149,7 +150,7 @@ public class TransactionServiceImplTest {
     }
 
     private void createTransaction(BigDecimal amount, Date date) throws Exception {
-        BigDecimal noticeAmount = amount.setScale(ROUNDING_SCALE, BigDecimal.ROUND_UNNECESSARY); // all values should have this scale
+        BigDecimal noticeAmount = amount.setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY); // all values should have this scale
 
         CreateTransactionDto createTransactionDto = new CreateTransactionDto();
         createTransactionDto.setAmount(noticeAmount);
@@ -159,7 +160,7 @@ public class TransactionServiceImplTest {
     }
 
     private BigDecimal getBigDecimal(Double i) {
-        return new BigDecimal(i).setScale(ROUNDING_SCALE, BigDecimal.ROUND_UNNECESSARY);
+        return new BigDecimal(i).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
     }
 
 
