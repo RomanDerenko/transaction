@@ -36,7 +36,7 @@ public class TransactionController {
     ResponseEntity<TransactionsStatisticsDto> getTransactionsStatistics() {
 
         TransactionsStatisticsDto transactionsStatisticsDto = transactionService.getTransactionsStatistics();
-        return new ResponseEntity<>(transactionsStatisticsDto, HttpStatus.CREATED);
+        return new ResponseEntity<>(transactionsStatisticsDto, HttpStatus.OK);
     }
 
     @DeleteMapping("/transactions")

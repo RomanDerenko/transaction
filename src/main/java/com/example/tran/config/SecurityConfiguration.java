@@ -1,5 +1,7 @@
 package com.example.tran.config;
 
+import com.example.tran.security.JwtAuthenticationFilter;
+import com.example.tran.security.JwtAuthorizationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
@@ -24,7 +26,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .authorizeRequests()
 
                 // swagger enabled
-                .antMatchers("/",
+                .antMatchers(//"/",
                         "/csrf",
                         "/v2/api-docs",
                         "/swagger-resources/configuration/ui",
@@ -35,11 +37,11 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                         "/swagger-ui.html",
                         "/webjars/**").permitAll()
 
-                //.anyRequest().authenticated()
-                .anyRequest().permitAll()
+                .anyRequest().authenticated()
+               // .anyRequest().permitAll()
                 .and()
-//                .addFilter(new JwtAuthenticationFilter(authenticationManager()))
-//                .addFilter(new JwtAuthorizationFilter(authenticationManager()))
+                .addFilter(new JwtAuthenticationFilter(authenticationManager()))
+                .addFilter(new JwtAuthorizationFilter(authenticationManager()))
                 .sessionManagement()
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
     }
