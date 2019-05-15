@@ -54,13 +54,17 @@ public class TransactionServiceImplTest {
     }
 
     @Test
-    public void testTransactionStatisticsExpired() throws Exception {
+    public void testTransactionStatisticsExpired() {
 
         Date currentDate = new Date();
         BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
         createTransaction(transactionAmount, currentDate);
 
-        Thread.sleep(MINUTE_MILLISECONDS);
+        try {
+            Thread.sleep(MINUTE_MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         BigDecimal expectedZeroResult = BigDecimal.ZERO.setScale(2);
         TransactionsStatisticsDto transactionsStatisticsDto = transactionService.getTransactionsStatistics();
@@ -72,7 +76,7 @@ public class TransactionServiceImplTest {
     }
 
     @Test
-    public void createOneTransactionTest() throws Exception {
+    public void createOneTransactionTest() {
         Date currentDate = new Date();
         BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
         createTransaction(transactionAmount, currentDate);
@@ -86,7 +90,7 @@ public class TransactionServiceImplTest {
     }
 
     @Test
-    public void createMultipleTransactionsAtSameTimeTest() throws Exception {
+    public void createMultipleTransactionsAtSameTimeTest() {
         Date currentDate = new Date();
 
         BigDecimal transactionAmount = new BigDecimal(5).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
@@ -105,8 +109,8 @@ public class TransactionServiceImplTest {
         Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(transactionAmount);
     }
 
-    @Test(expected=OldTransactionException.class)
-    public void expiredTransactionTest() throws Exception {
+    @Test(expected = OldTransactionException.class)
+    public void expiredTransactionTest() {
         Date currentDate = new Date();
         Date expirationDate = new Date(currentDate.getTime() - MINUTE_MILLISECONDS);
 
@@ -149,12 +153,13 @@ public class TransactionServiceImplTest {
         transactionService.deleteTransactions();
     }
 
-    private void createTransaction(BigDecimal amount, Date date) throws Exception {
+    private void createTransaction(BigDecimal amount, Date date) {
         BigDecimal noticeAmount = amount.setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY); // all values should have this scale
 
-        CreateTransactionDto createTransactionDto = new CreateTransactionDto();
-        createTransactionDto.setAmount(noticeAmount);
-        createTransactionDto.setTimestamp(date);
+        CreateTransactionDto createTransactionDto = CreateTransactionDto.builder()
+                .amount(noticeAmount)
+                .timestamp(date)
+                .build();
 
         transactionService.createTransaction(createTransactionDto);
     }

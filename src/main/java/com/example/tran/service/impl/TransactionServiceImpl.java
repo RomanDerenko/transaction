@@ -3,11 +3,11 @@ package com.example.tran.service.impl;
 import com.example.tran.Model.Transaction;
 import com.example.tran.dto.rest.CreateTransactionDto;
 import com.example.tran.dto.rest.TransactionsStatisticsDto;
-import com.example.tran.error.IncomingDateTransactionException;
-import com.example.tran.error.OldTransactionException;
 import com.example.tran.service.TransactionService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -27,7 +27,7 @@ public class TransactionServiceImpl implements TransactionService {
     private Date allignedAt = new Date();
 
     @Override
-    public void createTransaction(CreateTransactionDto createTransactionDto) throws Exception {
+    public void createTransaction(CreateTransactionDto createTransactionDto) {
 
         Date currentDate = new Date();
 
@@ -176,24 +176,24 @@ public class TransactionServiceImpl implements TransactionService {
         return  res;
     }
 
-    private int getPositionInTransactionsArray(Date transactionDate, Date currentDate)
-            throws Exception {
+    private int getPositionInTransactionsArray(Date transactionDate, Date currentDate) {
 
         Long currentDateTimestamp = currentDate.getTime();
         Long transactionTimestamp = transactionDate.getTime();
 
         // too old transaction
+        // TODO: there is an issue with NO_CONTENT exception handling (no exception body present)
+        // it wil be fixed after migration spring boot to 3.1 (https://github.com/spring-projects/spring-framework/issues/12566)
         if (currentDateTimestamp - transactionTimestamp >= MINUTE_MILLISECONDS) {
-            throw new OldTransactionException(String.format("Expired transaction received. " +
-                            "Transaction date: %s, Current Date: %s", transactionDate.toString(),
-                    currentDate.toString()));
+            throw new ResponseStatusException(HttpStatus.NO_CONTENT, String.format("Received expired transaction. " +
+                            "Transaction date: %s", transactionDate.toString()));
         }
 
         // upcoming transaction
         if (transactionTimestamp > currentDateTimestamp) {
-            throw new IncomingDateTransactionException(String.format("Incoming Date transaction received. " +
-                            "Transaction date: %s, Current Date: %s", transactionDate.toString(),
-                    currentDate.toString()));
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    String.format("Incoming Date transaction received. " +
+                    "Transaction date: %s, Current Date: %s)", transactionDate.toString(), currentDate.toString()));
         }
 
         // realign an array if transaction is newer than last update time

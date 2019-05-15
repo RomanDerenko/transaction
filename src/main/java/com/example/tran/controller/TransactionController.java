@@ -25,11 +25,10 @@ public class TransactionController {
 
     @PostMapping("/transactions")
     @ApiOperation(value = "Create new transaction")
-    ResponseEntity<Void> createTransaction(@RequestBody CreateTransactionDto createTransactionDto) throws Exception {
+    ResponseEntity<Void> createTransaction(@RequestBody CreateTransactionDto createTransactionDto) {
 
         transactionService.createTransaction(createTransactionDto);
-
-        return new ResponseEntity<>(HttpStatus.OK);
+        return new ResponseEntity<>(HttpStatus.CREATED);
     }
 
     @GetMapping("/statistics")

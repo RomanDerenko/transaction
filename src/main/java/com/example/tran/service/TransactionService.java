@@ -4,7 +4,7 @@ import com.example.tran.dto.rest.CreateTransactionDto;
 import com.example.tran.dto.rest.TransactionsStatisticsDto;
 
 public interface TransactionService {
-    void createTransaction(CreateTransactionDto createTransactionDto) throws Exception;
+    void createTransaction(CreateTransactionDto createTransactionDto);
     TransactionsStatisticsDto getTransactionsStatistics();
     void deleteTransactions();
 }
