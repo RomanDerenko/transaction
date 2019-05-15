@@ -2,7 +2,6 @@ package com.example.tran.service.impl;
 
 import com.example.tran.dto.rest.CreateTransactionDto;
 import com.example.tran.dto.rest.TransactionsStatisticsDto;
-import com.example.tran.error.OldTransactionException;
 import com.example.tran.service.TransactionService;
 import org.assertj.core.api.Java6Assertions;
 import org.junit.Before;
@@ -11,7 +10,9 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -61,7 +62,7 @@ public class TransactionServiceImplTest {
         createTransaction(transactionAmount, currentDate);
 
         try {
-            Thread.sleep(MINUTE_MILLISECONDS);
+            Thread.sleep(MINUTE_MILLISECONDS + 10);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -73,6 +74,55 @@ public class TransactionServiceImplTest {
         Java6Assertions.assertThat(transactionsStatisticsDto.getMin()).isEqualTo(expectedZeroResult);
         Java6Assertions.assertThat(transactionsStatisticsDto.getMax()).isEqualTo(expectedZeroResult);
         Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(expectedZeroResult);
+    }
+
+    @Test
+    public void testTransactionStatisticsChanged() throws InterruptedException {
+
+        Date currentDate = new Date();
+
+        int[] transactionAmounts = new int[]{5, 7};
+
+        // create first almost expired transaction (10 sec to expire)
+        Date firstTransactionDate = new Date(currentDate.getTime() - 1000 * 50);
+        BigDecimal firstTransactionAmount = new BigDecimal(transactionAmounts[0])
+                .setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
+
+        createTransaction(firstTransactionAmount, firstTransactionDate);
+
+        // check if stats are ok
+        BigDecimal expectedStatResult = firstTransactionAmount.setScale(2);
+        TransactionsStatisticsDto transactionsStatisticsDto = transactionService.getTransactionsStatistics();
+        Java6Assertions.assertThat(transactionsStatisticsDto.getCount()).isEqualTo(1);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(expectedStatResult);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMin()).isEqualTo(expectedStatResult);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMax()).isEqualTo(expectedStatResult);
+
+        // create second transaction now
+        BigDecimal secondTransactionAmount = new BigDecimal(7).setScale(ROUNDING_SCALE, RoundingMode.UNNECESSARY);
+        createTransaction(secondTransactionAmount, currentDate);
+
+        // check if stats are changed properly
+        Double expectedAverage = Arrays.stream(transactionAmounts).average().orElse(0);
+        Double expectedMin = (double) Arrays.stream(transactionAmounts).min().orElse(0);
+        Double expectedMax = (double) Arrays.stream(transactionAmounts).max().orElse(0);
+
+        transactionsStatisticsDto = transactionService.getTransactionsStatistics();
+        Java6Assertions.assertThat(transactionsStatisticsDto.getCount()).isEqualTo(2);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(getBigDecimal(expectedAverage));
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMin()).isEqualTo(getBigDecimal(expectedMin));
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMax()).isEqualTo(getBigDecimal(expectedMax));
+
+        // wait for first transaction to expire (11 sec)
+        Thread.sleep(11000);
+
+        // check if stats are ok
+        expectedStatResult = secondTransactionAmount.setScale(2);
+        transactionsStatisticsDto = transactionService.getTransactionsStatistics();
+        Java6Assertions.assertThat(transactionsStatisticsDto.getCount()).isEqualTo(1);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(expectedStatResult);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMin()).isEqualTo(expectedStatResult);
+        Java6Assertions.assertThat(transactionsStatisticsDto.getMax()).isEqualTo(expectedStatResult);
     }
 
     @Test
@@ -109,13 +159,20 @@ public class TransactionServiceImplTest {
         Java6Assertions.assertThat(transactionsStatisticsDto.getAvg()).isEqualTo(transactionAmount);
     }
 
-    @Test(expected = OldTransactionException.class)
+    @Test(expected = ResponseStatusException.class)
     public void expiredTransactionTest() {
         Date currentDate = new Date();
         Date expirationDate = new Date(currentDate.getTime() - MINUTE_MILLISECONDS);
 
         BigDecimal transactionAmount = getBigDecimal((double) 5);
-        createTransaction(transactionAmount, expirationDate);
+
+        try {
+            createTransaction(transactionAmount, expirationDate);
+        }
+        catch (ResponseStatusException e) {
+            Java6Assertions.assertThat(e.getStatus().compareTo(HttpStatus.NO_CONTENT)).isEqualTo(0);
+            throw e;
+        }
     }
 
     @Test

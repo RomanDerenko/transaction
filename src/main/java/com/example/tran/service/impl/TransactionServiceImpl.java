@@ -12,6 +12,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 @Slf4j
@@ -21,18 +23,17 @@ public class TransactionServiceImpl implements TransactionService {
     private static final int MINUTE_MILLISECONDS = 1000 * 60;
 
     private Transaction[] latestTransactions = new Transaction[MINUTE_MILLISECONDS];
-    private Transaction maxAmount = null;
-    private Transaction minAmount = null;
 
     private Date allignedAt = new Date();
 
     @Override
-    public void createTransaction(CreateTransactionDto createTransactionDto) {
+    public synchronized void createTransaction(CreateTransactionDto createTransactionDto) {
 
         Date currentDate = new Date();
 
         int position = getPositionInTransactionsArray(createTransactionDto.getTimestamp(), currentDate);
 
+        // debug
         if (position < 0 || position >= MINUTE_MILLISECONDS) {
             log.info(String.format("Error Position: %d", position));
         }
@@ -45,40 +46,29 @@ public class TransactionServiceImpl implements TransactionService {
                     .amount(createTransactionDto.getAmount())
                     .timestamp(createTransactionDto.getTimestamp())
                     .count(1L)
+                    .max(createTransactionDto.getAmount())
+                    .min(createTransactionDto.getAmount())
                     .build();
         } else {
+
+            // update max value if needed
+            if (latestTransactions[position].getMax().compareTo(createTransactionDto.getAmount()) < 0) {
+                latestTransactions[position].setMax(createTransactionDto.getAmount());
+            }
+
+            // update min value if needed
+            if (latestTransactions[position].getMin().compareTo(createTransactionDto.getAmount()) > 0) {
+                latestTransactions[position].setMin(createTransactionDto.getAmount());
+            }
+
             latestTransactions[position]
                     .setAmount(latestTransactions[position].getAmount().add(createTransactionDto.getAmount()));
             latestTransactions[position].setCount(latestTransactions[position].getCount() + 1);
         }
-
-        Date expirationDate = new Date(currentDate.getTime() - MINUTE_MILLISECONDS);
-
-        // update max value if needed
-        if (maxAmount == null || expirationDate.after(createTransactionDto.getTimestamp()) ||
-                maxAmount.getAmount().compareTo(createTransactionDto.getAmount()) < 0) {
-
-            maxAmount = Transaction.builder()
-                    .amount(createTransactionDto.getAmount())
-                    .timestamp(createTransactionDto.getTimestamp())
-                    .count(1L)
-                    .build();
-        }
-
-        // update max value if needed
-        if (minAmount == null || expirationDate.after(createTransactionDto.getTimestamp()) ||
-                minAmount.getAmount().compareTo(createTransactionDto.getAmount()) > 0) {
-
-            minAmount = Transaction.builder()
-                    .amount(createTransactionDto.getAmount())
-                    .timestamp(createTransactionDto.getTimestamp())
-                    .count(1L)
-                    .build();
-        }
     }
 
     @Override
-    public TransactionsStatisticsDto getTransactionsStatistics() {
+    public synchronized TransactionsStatisticsDto getTransactionsStatistics() {
 
         Date currentDate = new Date();
         shiftTransactionsArray(currentDate);
@@ -86,52 +76,49 @@ public class TransactionServiceImpl implements TransactionService {
         BigDecimal sum = BigDecimal.ZERO;
         Long count = 0L;
 
+        BigDecimal max = null;
+        BigDecimal min = null;
+
         for (int pos = 0; pos < MINUTE_MILLISECONDS; ++pos) {
 
             Transaction transaction = latestTransactions[pos];
             if (transaction != null) {
                 sum = sum.add(transaction.getAmount());
                 count += transaction.getCount();
+
+                if (max == null || max.compareTo(transaction.getMax()) < 0) {
+                    max = transaction.getMax();
+                }
+
+                if (min == null || min.compareTo(transaction.getMin()) > 0) {
+                    min = transaction.getMin();
+                }
             }
         }
 
-        BigDecimal max = maxAmount == null ? BigDecimal.ZERO : maxAmount.getAmount();
-        BigDecimal min = minAmount == null ? BigDecimal.ZERO : minAmount.getAmount();
         BigDecimal avg = count == 0L ? BigDecimal.ZERO :
                 sum.divide(BigDecimal.valueOf(count), ROUNDING_SCALE, RoundingMode.HALF_UP);
 
         return TransactionsStatisticsDto.builder()
                 .avg(avg.setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
-                .max(max.setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
-                .min(min.setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
+                .max((max == null ? BigDecimal.ZERO : max).setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
+                .min((min == null ? BigDecimal.ZERO : min).setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
                 .sum(sum.setScale(ROUNDING_SCALE, RoundingMode.HALF_UP))
                 .count(count)
                 .build();
     }
 
     @Override
-    public void deleteTransactions() {
+    public synchronized void deleteTransactions() {
         for (int pos = 0; pos < MINUTE_MILLISECONDS; ++pos) {
             latestTransactions[pos] = null;
         }
-
-        minAmount = null;
-        maxAmount = null;
     }
 
     private void shiftTransactionsArray(Date currentDate) {
 
         // finding first expired date and shift offset
         Date expirationDate = new Date(currentDate.getTime() - MINUTE_MILLISECONDS);
-
-        //delete min/max records if expired
-        if (minAmount != null && minAmount.getTimestamp().before(expirationDate)) {
-            minAmount = null;
-        }
-
-        if (maxAmount != null && maxAmount.getTimestamp().before(expirationDate)) {
-            maxAmount = null;
-        }
 
         // depending on last update time - shift an array
         int shiftLength;
@@ -150,13 +137,12 @@ public class TransactionServiceImpl implements TransactionService {
         if (shiftLength != 0) {
             for (int pos = 0; pos < MINUTE_MILLISECONDS; ++pos) {
                 if (pos + shiftLength < MINUTE_MILLISECONDS) {
-                    Transaction transactionToMove = latestTransactions[pos + shiftLength];
-                    if (transactionToMove != null) {
-                        latestTransactions[pos] = latestTransactions[pos + shiftLength];
-                        latestTransactions[pos + shiftLength] = null;
-                    }
+                    latestTransactions[pos] = latestTransactions[pos + shiftLength];
+                    latestTransactions[pos + shiftLength] = null;
                 } else {
-                    latestTransactions[pos] = null;
+                    if (latestTransactions[pos] != null) {
+                        latestTransactions[pos] = null;
+                    }
                 }
             }
         }
@@ -169,11 +155,24 @@ public class TransactionServiceImpl implements TransactionService {
 
         for (int pos = 0; pos < MINUTE_MILLISECONDS; ++pos) {
             if (latestTransactions[pos] != null) {
-                res ++;
+                res++;
             }
         }
 
-        return  res;
+        return res;
+    }
+
+    private Map<Integer, Transaction> getTransactionsRecords() {
+
+        Map<Integer, Transaction> res = new HashMap<>();
+
+        for (int pos = 0; pos < MINUTE_MILLISECONDS; ++pos) {
+            if (latestTransactions[pos] != null) {
+                res.put(pos, latestTransactions[pos]);
+            }
+        }
+
+        return res;
     }
 
     private int getPositionInTransactionsArray(Date transactionDate, Date currentDate) {
@@ -186,14 +185,14 @@ public class TransactionServiceImpl implements TransactionService {
         // it wil be fixed after migration spring boot to 3.1 (https://github.com/spring-projects/spring-framework/issues/12566)
         if (currentDateTimestamp - transactionTimestamp >= MINUTE_MILLISECONDS) {
             throw new ResponseStatusException(HttpStatus.NO_CONTENT, String.format("Received expired transaction. " +
-                            "Transaction date: %s", transactionDate.toString()));
+                    "Transaction date: %s", transactionDate.toString()));
         }
 
         // upcoming transaction
         if (transactionTimestamp > currentDateTimestamp) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     String.format("Incoming Date transaction received. " +
-                    "Transaction date: %s, Current Date: %s)", transactionDate.toString(), currentDate.toString()));
+                            "Transaction date: %s, Current Date: %s)", transactionDate.toString(), currentDate.toString()));
         }
 
         // realign an array if transaction is newer than last update time

@@ -12,4 +12,6 @@ public class Transaction {
     private BigDecimal amount;
     private Date timestamp;
     private Long count;
+    private BigDecimal max;
+    private BigDecimal min;
 }
